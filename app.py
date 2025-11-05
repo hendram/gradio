@@ -63,21 +63,24 @@ def query_agent(prompt: str):
         resp = requests.post(f"{ADK_URL}/run", json=payload)
         resp.raise_for_status()
         data = resp.json()
+        print("data", data)
     except Exception as e:
         return f"<div style='color:red;'>Error: {e}</div>"
 
-    # Safely extract agent response
-    try:
-        parts = data[0]["content"]["parts"]
-        agent_reply = next((p["text"] for p in parts if "text" in p), "[No text returned]")
-    except (IndexError, KeyError, TypeError):
-        agent_reply = "[Unexpected response format]"
+    # -------------------------
+    # Debug: Show full raw ADK response
+    # -------------------------
+    import json
+    debug_text = json.dumps(data, ensure_ascii=False, indent=2)
 
+    # Append to conversation for frontend
     timestamp = datetime.now().strftime("%H:%M")
     conversation.append({"role": "user", "text": prompt, "time": timestamp})
-    conversation.append({"role": "agent", "text": agent_reply, "time": timestamp})
+    conversation.append({"role": "agent", "text": debug_text, "time": timestamp})
 
+    # -------------------------
     # Render chat bubbles
+    # -------------------------
     chat_html = '<div style="display:flex; flex-direction:column;">'
     for msg in conversation:
         if msg["role"] == "user":
@@ -93,11 +96,13 @@ def query_agent(prompt: str):
             <div style="align-self:flex-start; background:#FFFFFF; color:#000;
                         padding:8px 12px; border-radius:15px 15px 15px 0;
                         margin:4px 0; max-width:70%; border:1px solid #ccc;">
-                {msg['text']}<div style="font-size:10px; text-align:right;">{msg['time']}</div>
+                <pre style="white-space:pre-wrap; margin:0;">{msg['text']}</pre>
+                <div style="font-size:10px; text-align:right;">{msg['time']}</div>
             </div>
             """
     chat_html += "</div><script>var chat = document.getElementById('chatbox'); chat.scrollTop = chat.scrollHeight;</script>"
     return chat_html
+
 
 # --- Gradio UI ---
 with gr.Blocks() as demo:
