@@ -2,12 +2,15 @@ import gradio as gr
 import requests
 from datetime import datetime
 import os
+import re
 
 # --- ADK Config ---
 from dotenv import load_dotenv
 
 # Load .env variables
 load_dotenv()
+
+port = int(os.getenv("PORT", 80))
 
 ADK_URL = os.getenv("ADK_URL")
 APP_NAME = os.getenv("APP_NAME")
@@ -48,6 +51,32 @@ def get_or_create_session():
     return session_id
 
 # --- Query ADK agent ---
+
+def markdown_table_to_html(md_text: str) -> str:
+    """
+    Converts a Markdown table into an HTML table.
+    """
+    lines = md_text.strip().splitlines()
+    if len(lines) < 2:
+        return md_text  # Not a table
+    
+    # Check for table header separator line (---)
+    if not re.match(r"^\s*\|?\s*[-:]+\s*(\|[-:]+\s*)+\|?\s*$", lines[1]):
+        return md_text  # Not a table
+    
+    # Split lines into cells
+    rows = [re.split(r"\s*\|\s*", line.strip("| ")) for line in lines]
+    
+    html = '<table border="1" style="border-collapse:collapse; width:100%;">\n'
+    # Header
+    html += "<tr>" + "".join(f"<th>{cell}</th>" for cell in rows[0]) + "</tr>\n"
+    # Data rows
+    for row in rows[2:]:  # skip separator line
+        html += "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>\n"
+    html += "</table>"
+    return html
+
+
 def query_agent(prompt: str):
     global conversation
     session_id = get_or_create_session()
@@ -63,20 +92,38 @@ def query_agent(prompt: str):
         resp = requests.post(f"{ADK_URL}/run", json=payload)
         resp.raise_for_status()
         data = resp.json()
-        print("data", data)
     except Exception as e:
         return f"<div style='color:red;'>Error: {e}</div>"
 
     # -------------------------
-    # Debug: Show full raw ADK response
+    # Extract RootAgent response
     # -------------------------
-    import json
-    debug_text = json.dumps(data, ensure_ascii=False, indent=2)
+    root_responses_set = set()
+    for item in data:
+        if item.get("author") == "RootAgent":
+            for part in item.get("content", {}).get("parts", []):
+                if "text" in part and part.get("name") != "SemanticAgent":
+                    root_responses_set.add(part["text"])
 
-    # Append to conversation for frontend
+    final_responses = list(root_responses_set)
+    final_text = "\n\n".join(final_responses) if final_responses else "<i>No response from RootAgent</i>"
+
+    # -------------------------
+    # Convert Markdown tables to HTML tables
+    # -------------------------
+    final_text = re.sub(
+        r"(\|.+\|\n\|[-:| ]+\|(?:\n\|.*\|)+)", 
+        lambda m: markdown_table_to_html(m.group(0)),
+        final_text,
+        flags=re.MULTILINE
+    )
+
+    # -------------------------
+    # Append to conversation
+    # -------------------------
     timestamp = datetime.now().strftime("%H:%M")
     conversation.append({"role": "user", "text": prompt, "time": timestamp})
-    conversation.append({"role": "agent", "text": debug_text, "time": timestamp})
+    conversation.append({"role": "agent", "text": final_text, "time": timestamp})
 
     # -------------------------
     # Render chat bubbles
@@ -96,13 +143,12 @@ def query_agent(prompt: str):
             <div style="align-self:flex-start; background:#FFFFFF; color:#000;
                         padding:8px 12px; border-radius:15px 15px 15px 0;
                         margin:4px 0; max-width:70%; border:1px solid #ccc;">
-                <pre style="white-space:pre-wrap; margin:0;">{msg['text']}</pre>
+                {msg['text']}
                 <div style="font-size:10px; text-align:right;">{msg['time']}</div>
             </div>
             """
     chat_html += "</div><script>var chat = document.getElementById('chatbox'); chat.scrollTop = chat.scrollHeight;</script>"
     return chat_html
-
 
 # --- Gradio UI ---
 with gr.Blocks() as demo:
@@ -113,7 +159,8 @@ with gr.Blocks() as demo:
     .my-btn button { background-color:#4CAF50; color:white; border-radius:12px; padding:10px 20px; border:none; font-size:16px; cursor:pointer; }
     .my-btn button:hover { background-color:#45a049; }
     #user_input textarea { font-size:16px; padding:8px; border-radius:8px; border:1px solid #ccc; width:100%; }
-    </style>
+    .svelte-czcr5b { display: none }
+   </style>
     """)
 
     gr.Markdown("## Mobile Ads Analytics Agent", elem_id="header")
@@ -129,4 +176,4 @@ with gr.Blocks() as demo:
     submit.click(query_agent, inputs=user_input, outputs=chatbox)
     user_input.submit(query_agent, inputs=user_input, outputs=chatbox)
 
-demo.launch(server_name="0.0.0.0", server_port=7860)
+demo.launch(server_name="0.0.0.0", server_port=port)
