@@ -95,3 +95,4 @@ dotenv – Environment variable management.
 
 ADK Agents – RootAgent and Semantic Agents handle analytic queries.
 
+![Workflow Diagram](Gradioarchitechturediagram.png)
