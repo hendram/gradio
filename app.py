@@ -148,7 +148,6 @@ def query_agent(prompt: str):
 
     # --- Reset graph visibility on each new send ---
     graph_visibility = gr.update(visible=False)
-
     session_id = get_or_create_session()
     payload = {
         "app_name": APP_NAME,
@@ -156,13 +155,28 @@ def query_agent(prompt: str):
         "session_id": session_id,
         "new_message": {"role": "user", "parts": [{"text": prompt}]}
     }
-
     try:
         resp = requests.post(f"{ADK_URL}/run", json=payload)
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
-        return f"<div style='color:red;'>Error: {e}</div>", graph_visibility
+        error_html = f"""
+        <div style="
+            background:#FDECEA;
+            color:#611A15;
+            border:1px solid #F5C2C7;
+            padding:12px 14px;
+            border-radius:10px;
+            margin:6px 0;
+            max-width:70%;
+            font-family:Arial, sans-serif;
+            box-shadow:0 2px 4px rgba(0,0,0,0.1);
+        ">
+            <strong>⚠ System Error</strong><br/>
+            Something went wrong while processing your request. Please try again.
+        </div>
+        """
+        return error_html, gr.update(visible=False)
 
     # -------------------------
     # Extract RootAgent response
