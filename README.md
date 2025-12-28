@@ -15,6 +15,13 @@ This project provides a web-based analytics agent for monitoring and analyzing m
 
 ---
 
+## How to start it
+```bash
+/home# source .venv/bin/activate
+/home# cd gradio
+/home/gradio# python3 app.py
+```
+
 ## Usage
 Open the app in a browser.
 
