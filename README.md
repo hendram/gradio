@@ -96,3 +96,15 @@ dotenv – Environment variable management.
 ADK Agents – RootAgent and Semantic Agents handle analytic queries.
 
 ![Workflow Diagram](Gradioarchitechturediagram.png)
+
+### Dockerfile
+FROM ghcr.io/hendram/gradio:latest
+
+WORKDIR /home/gradio
+
+ENV PORT=80
+
+EXPOSE 80
+
+CMD ["/bin/bash", "-c", "source ../.venv/bin/activate && python3 app.py"]
+
